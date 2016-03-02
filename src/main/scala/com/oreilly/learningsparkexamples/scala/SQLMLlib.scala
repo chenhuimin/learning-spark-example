@@ -23,6 +23,8 @@ object SQLMLlib {
     val hiveContext = new HiveContext(sc)
 
     hiveContext.sql("SET spark.sql.shuffle.partitions=20")
+
+
     val sqldata = hiveContext.sql("select a.locationid, sum(b.qty) totalqty,sum(b.amount) totalamount from tbStock a join tbStockDetail b on a.ordernumber=b.ordernumber group by a.locationid")
     val parsedData = sqldata.map {
       case Row(_, totalqty, totalamount) =>
