@@ -1,5 +1,6 @@
 package com.oreilly.learningsparkexamples.scala
 
+//import java.sql.Timestamp
 import java.text.SimpleDateFormat
 import java.util.{Calendar, Date}
 
@@ -39,10 +40,10 @@ object ReadWithStratioSparkMongoDB {
     collection
   }
 
-  def getMongoConfig(mongodbHostPort: String, mongodbDatabase: String, mongodbCollection: String): Config = {
-    val builder = MongodbConfigBuilder(Map(Host -> List(mongodbHostPort), Database -> mongodbDatabase, Collection -> mongodbCollection, SamplingRatio -> 1.0, WriteConcern -> "normal"))
-    builder.build()
-  }
+  //  def getMongoConfig(mongodbHostPort: String, mongodbDatabase: String, mongodbCollection: String): Config = {
+  //    val builder = MongodbConfigBuilder(Map(Host -> List(mongodbHostPort), Database -> mongodbDatabase, Collection -> mongodbCollection, SamplingRatio -> 1.0, WriteConcern -> "normal"))
+  //    builder.build()
+  //  }
 
   def ifExists(tachyonFileSystem: TachyonFileSystem, file: String): Boolean = {
     val dataFileURI = new TachyonURI(file)
@@ -122,8 +123,10 @@ object ReadWithStratioSparkMongoDB {
     //      //tachyon存在，则直接从tachyon中读取
     //      userBehaviorDF = sqlc.read.parquet(tachyonHost + tachyonFile)
     //    }
-    val readConfig = getMongoConfig(mongodbHostPortPro, mongodbInputDatabase, mongodbInputCollection)
-    sqlc.fromMongoDB(readConfig, Some(userBehaviorSchema)).registerTempTable("userBehaviors")
+    val proReadConfig = MongodbConfigBuilder(Map(Host -> List(mongodbHostPortPro), Database -> mongodbInputDatabase, Collection -> mongodbInputCollection, SamplingRatio -> 0.1, CursorBatchSize -> 1000)).build()
+    val userBehaviorsDF = sqlc.fromMongoDB(proReadConfig, Some(userBehaviorSchema))
+    // userBehaviorsDF.where(userBehaviorsDF("createTime") > new java.sql.Timestamp(getSearchDate(0).getTime)).registerTempTable("userBehaviors")
+    userBehaviorsDF.registerTempTable("userBehaviors")
     sqlc.cacheTable("userBehaviors")
 
     //设置shuffle数
@@ -147,8 +150,8 @@ object ReadWithStratioSparkMongoDB {
 
     val outputCollection = getMongoCollection(mongodbHostPortPro, mongodbOutputDatabase, mongodbOutputCollection)
     val statisShopQuery = MongoDBObject(("appName", "weixin-consultation"), ("shopId", "1001"), ("statisType", "statisShop"), ("statisDate", getSearchDate(0)))
-    val proMongoConfig = getMongoConfig(mongodbHostPortPro, mongodbOutputDatabase, mongodbOutputCollection)
-    executeSqlAndSave(sqlc, statisShopSql, outputCollection, statisShopQuery, proMongoConfig)
+    val proSaveConfig = MongodbConfigBuilder(Map(Host -> List(mongodbHostPortPro), Database -> mongodbOutputDatabase, Collection -> mongodbOutputCollection, SamplingRatio -> 0.1, WriteConcern -> "normal", CursorBatchSize -> 1000)).build()
+    executeSqlAndSave(sqlc, statisShopSql, outputCollection, statisShopQuery, proSaveConfig)
 
     //sql2：统计微店产品热度
     val statisShopProductSql =
@@ -166,7 +169,7 @@ object ReadWithStratioSparkMongoDB {
         |order by uv desc, pv desc""".stripMargin.replaceAll("\n", " ")
 
     val statisShopProductQuery = MongoDBObject(("appName", "weixin-consultation"), ("shopId", "1001"), ("statisType", "statisShopProduct"))
-    executeSqlAndSave(sqlc, statisShopProductSql, outputCollection, statisShopProductQuery, proMongoConfig)
+    executeSqlAndSave(sqlc, statisShopProductSql, outputCollection, statisShopProductQuery, proSaveConfig)
 
     //sql3：统计微店最近访客
     val statisShopVisitorSql =
@@ -185,7 +188,7 @@ object ReadWithStratioSparkMongoDB {
         |limit 100""".stripMargin.replaceAll("\n", " ")
 
     val statisShopVisitorQuery = MongoDBObject(("appName", "weixin-consultation"), ("shopId", "1001"), ("statisType", "statisShopVisitor"))
-    executeSqlAndSave(sqlc, statisShopVisitorSql, outputCollection, statisShopVisitorQuery, proMongoConfig)
+    executeSqlAndSave(sqlc, statisShopVisitorSql, outputCollection, statisShopVisitorQuery, proSaveConfig)
     sqlc.uncacheTable("userBehaviors")
 
   }
