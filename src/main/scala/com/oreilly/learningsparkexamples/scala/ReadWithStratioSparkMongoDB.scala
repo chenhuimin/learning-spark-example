@@ -145,13 +145,18 @@ object ReadWithStratioSparkMongoDB {
         |and newsId is not null
         |and userId is not null and userId <> '-1'
         |and createTime >= current_date()
-        |and createTime <= current_timestamp
+        |and createTime <= current_timestamp()
         |group by appName, to_date(createTime)""".stripMargin.replaceAll("\n", " ")
 
-    val outputCollection = getMongoCollection(mongodbHostPortPro, mongodbOutputDatabase, mongodbOutputCollection)
+    val proOutputCollection = getMongoCollection(mongodbHostPortPro, mongodbOutputDatabase, mongodbOutputCollection)
+    val preProOutputCollection = getMongoCollection(mongodbHostPortPrePro, mongodbOutputDatabase, mongodbOutputCollection)
     val statisShopQuery = MongoDBObject(("appName", "weixin-consultation"), ("shopId", "1001"), ("statisType", "statisShop"), ("statisDate", getSearchDate(0)))
     val proSaveConfig = MongodbConfigBuilder(Map(Host -> List(mongodbHostPortPro), Database -> mongodbOutputDatabase, Collection -> mongodbOutputCollection, SamplingRatio -> 0.1, WriteConcern -> "normal", CursorBatchSize -> 1000)).build()
-    executeSqlAndSave(sqlc, statisShopSql, outputCollection, statisShopQuery, proSaveConfig)
+    val preProSaveConfig = MongodbConfigBuilder(Map(Host -> List(mongodbHostPortPrePro), Database -> mongodbOutputDatabase, Collection -> mongodbOutputCollection, SamplingRatio -> 0.1, WriteConcern -> "normal", CursorBatchSize -> 1000)).build()
+    //save to pro
+    executeSqlAndSave(sqlc, statisShopSql, proOutputCollection, statisShopQuery, proSaveConfig)
+    //save to pre-pro
+    executeSqlAndSave(sqlc, statisShopSql, preProOutputCollection, statisShopQuery, proSaveConfig)
 
     //sql2：统计微店产品热度
     val statisShopProductSql =
@@ -169,7 +174,10 @@ object ReadWithStratioSparkMongoDB {
         |order by uv desc, pv desc""".stripMargin.replaceAll("\n", " ")
 
     val statisShopProductQuery = MongoDBObject(("appName", "weixin-consultation"), ("shopId", "1001"), ("statisType", "statisShopProduct"))
-    executeSqlAndSave(sqlc, statisShopProductSql, outputCollection, statisShopProductQuery, proSaveConfig)
+    //save to pro
+    executeSqlAndSave(sqlc, statisShopProductSql, proOutputCollection, statisShopProductQuery, proSaveConfig)
+    //save to pre-pro
+    executeSqlAndSave(sqlc, statisShopProductSql, preProOutputCollection, statisShopProductQuery, proSaveConfig)
 
     //sql3：统计微店最近访客
     val statisShopVisitorSql =
@@ -188,7 +196,10 @@ object ReadWithStratioSparkMongoDB {
         |limit 100""".stripMargin.replaceAll("\n", " ")
 
     val statisShopVisitorQuery = MongoDBObject(("appName", "weixin-consultation"), ("shopId", "1001"), ("statisType", "statisShopVisitor"))
-    executeSqlAndSave(sqlc, statisShopVisitorSql, outputCollection, statisShopVisitorQuery, proSaveConfig)
+    //save to pro
+    executeSqlAndSave(sqlc, statisShopVisitorSql, proOutputCollection, statisShopVisitorQuery, proSaveConfig)
+    //save to pre-pro
+    executeSqlAndSave(sqlc, statisShopVisitorSql, preProOutputCollection, statisShopVisitorQuery, proSaveConfig)
     sqlc.uncacheTable("userBehaviors")
 
   }
